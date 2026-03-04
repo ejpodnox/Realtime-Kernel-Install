@@ -1,0 +1,53 @@
+## General procedure
+- Install Ubuntu
+- Install packages to compile a kernel
+     - `apt-get install build-essential bc curl ca-certificates gnupg2
+libssl-dev lsb-release libelf-dev bison flex dwarves zstd libncurses-dev`
+     - for later Kernels (>6.3?): `apt-get install build-essential bc
+curl ca-certificates gnupg2 libssl-dev lsb-release libelf-dev bison flex
+dwarves zstd libncurses-dev debhelper`
+- Download Kernel Sources and RT patch
+     - Look for the patch with the highest available Kernel version
+[here](https://mirrors.edge.kernel.org/pub/linux/kernel/projects/rt/)
+     - Download the corresponding kernel
+[here](https://mirrors.edge.kernel.org/pub/linux/kernel/)
+- extract, patch and compile kernel
+     - `gunzip patch-5.19-rt10.patch.gz`
+     - `tar -xzf linux-5.19.10.tar.gz`
+     - `cd linux-5.19.10`
+     - `patch -p1 < ../patch-5.19-rt10.patch`
+     - `cp -v /boot/config-$(uname -r) .config`
+     - `make olddefconfig`
+     - `make menuconfig`
+         - General Setup > Preemption Model and select Fully Preemptible
+Kernel (Real-Time).
+         - Cryptographic API > Certificates for signature checking (at
+the very bottom of the list) > Provide system-wide ring of trusted keys
+ > Additional X.509 keys for default system keyring
+         - Remove the “debian/canonical-certs.pem” from the prompt and
+press Ok
+         - "Provide system-wide ring of blacklisted keys" deselektieren
+     - `date > compile_time ; make -j2 deb-pkg 2>&1 | tee compile.log ;
+date >> compile_time;`
+     - for later Kernels (>6.3?): `date > compile_time ; make -j2
+bindeb-pkg 2>&1 | tee compile.log ; date >> compile_time;`
+     - `dpkg -i ../linux-headers-5.19.10-rt10_5.19.10-rt10-1_amd64.deb
+../linux-image-5.19.10-rt10*.deb`
+- possibly it is not possible to select the new kernel during the boot
+processe, edit grub:
+     - vi /etc/default/grub
+     - `GRUB_DEFAULT=SAVED`
+     - `GRUB_TIMEOUT_STYLE=`
+     - `GRUB_TIMEOUT=2`
+- configure RT
+     - `sudo addgroup realtime`
+     - `sudo usermod -a -G realtime $(whoami)`
+     - edit /etc/security/limits.conf
+         - `@realtime soft rtprio 99`
+         - `@realtime soft priority 99`
+         - `@realtime soft memlock 102400`
+         - `@realtime hard rtprio 99`
+         - `@realtime hard priority 99`
+         - `@realtime hard memlock 102400`
+- now it's possible to boot the RT Kernel, but not with Secure Boot,
+this issue is still open
